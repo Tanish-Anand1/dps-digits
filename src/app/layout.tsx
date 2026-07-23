@@ -5,6 +5,7 @@ import "./globals.css";
 import SmoothScroll from "@/components/SmoothScroll";
 import BackgroundEffects from "@/components/BackgroundEffects";
 import PageLoader from "@/components/PageLoader";
+import AnalyticsTracker from "@/components/AnalyticsTracker";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -83,7 +84,8 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="relative bg-black text-white antialiased min-h-screen selection:bg-emerald-700 selection:text-white">
+      <body className="relative bg-black text-white antialiased min-h-screen selection:bg-amber-400 selection:text-black">
+        <AnalyticsTracker />
         <PageLoader />
         <BackgroundEffects />
         <SmoothScroll>
