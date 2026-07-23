@@ -13,13 +13,17 @@ export async function POST(req: NextRequest) {
       ? forwardedFor.split(",")[0].trim()
       : realIp || (req as unknown as { ip?: string }).ip || "127.0.0.1";
 
-    if (ip === "::1" || ip === "127.0.0.1") {
-      ip = "127.0.0.1 (Localhost)";
+    const isIgnoredHeader = req.headers.get("x-ignore-analytics") === "true" || body.ignore === true;
+
+    // EXCLUDE THIS PC / LOCALHOST DEVELOPER ENVIRONMENT
+    if (ip === "::1" || ip === "127.0.0.1" || ip.includes("127.0.0.1") || isIgnoredHeader) {
+      return NextResponse.json({ success: true, ignored: true, reason: "Localhost / Developer PC Excluded" });
     }
 
     const userAgent = req.headers.get("user-agent") || "Unknown User-Agent";
 
     const event = logAnalyticsEvent({
+      visitorId: body.visitorId || "vid_unknown",
       ip,
       userAgent,
       path: body.path || "/",

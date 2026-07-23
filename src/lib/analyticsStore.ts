@@ -3,6 +3,8 @@ import path from "path";
 
 export interface AnalyticsEvent {
   id: string;
+  visitorId: string;
+  isNewDevice: boolean;
   timestamp: string;
   ip: string;
   userAgent: string;
@@ -17,7 +19,6 @@ export interface AnalyticsEvent {
 const DATA_DIR = path.join(process.cwd(), "data");
 const DATA_FILE = path.join(DATA_DIR, "analytics.json");
 
-// In-memory fallback in case filesystem is read-only
 let memoryEvents: AnalyticsEvent[] = [];
 
 function ensureDataFile() {
@@ -68,24 +69,46 @@ export function getAnalyticsEvents(): AnalyticsEvent[] {
   return memoryEvents;
 }
 
-export function logAnalyticsEvent(eventData: Omit<AnalyticsEvent, "id" | "timestamp" | "deviceType" | "os" | "browser">): AnalyticsEvent {
+export function logAnalyticsEvent(
+  eventData: Omit<AnalyticsEvent, "id" | "isNewDevice" | "timestamp" | "deviceType" | "os" | "browser">
+): AnalyticsEvent | null {
   ensureDataFile();
+
+  const existing = getAnalyticsEvents();
+  const now = Date.now();
+
+  const isDuplicate = existing.some((e) => {
+    const timeDiff = now - new Date(e.timestamp).getTime();
+    return (
+      timeDiff < 8000 &&
+      e.ip === eventData.ip &&
+      e.visitorId === eventData.visitorId &&
+      e.action === eventData.action &&
+      e.path === eventData.path
+    );
+  });
+
+  if (isDuplicate) {
+    return null; // Suppress rapid duplicate hit
+  }
+
+  const isNewDevice = !existing.some((e) => e.visitorId === eventData.visitorId || (e.ip === eventData.ip && e.userAgent === eventData.userAgent));
 
   const { deviceType, os, browser } = parseUserAgent(eventData.userAgent);
 
   const newEvent: AnalyticsEvent = {
     id: "evt_" + Math.random().toString(36).substring(2, 10),
+    isNewDevice,
     timestamp: new Date().toISOString(),
     ...eventData,
+    visitorId: eventData.visitorId || "vid_unknown",
     deviceType,
     os,
     browser,
   };
 
-  const existing = getAnalyticsEvents();
-  existing.unshift(newEvent); // Latest events first
+  existing.unshift(newEvent);
 
-  // Keep max 2000 events to manage file size
   const trimmed = existing.slice(0, 2000);
   memoryEvents = trimmed;
 
