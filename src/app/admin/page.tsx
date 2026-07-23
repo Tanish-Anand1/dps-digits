@@ -17,10 +17,13 @@ import {
   ChevronRight,
   Eye,
   Laptop,
-  CheckCircle,
-  XCircle,
+  Ban,
+  CheckCircle2,
+  ListFilter,
+  History,
+  AlertTriangle,
 } from "lucide-react";
-import { AnalyticsEvent } from "@/lib/analyticsStore";
+import { AnalyticsEvent, GroupedIPVisitor } from "@/lib/analyticsStore";
 
 export default function AdminDashboard() {
   const [passcode, setPasscode] = useState("");
@@ -33,12 +36,15 @@ export default function AdminDashboard() {
     totalHits: 0,
     uniqueDeviceCount: 0,
     uniqueIPs: 0,
+    blockedIPCount: 0,
     deviceCounts: { Desktop: 0, Mobile: 0, Tablet: 0, Unknown: 0 },
   });
 
-  const [events, setEvents] = useState<AnalyticsEvent[]>([]);
+  const [groupedVisitors, setGroupedVisitors] = useState<GroupedIPVisitor[]>([]);
+  const [blockedIPs, setBlockedIPs] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState("");
-  const [selectedEvent, setSelectedEvent] = useState<AnalyticsEvent | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<GroupedIPVisitor | null>(null);
+  const [activeTab, setActiveTab] = useState<"grouped" | "blocked">("grouped");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -74,7 +80,8 @@ export default function AdminDashboard() {
         setIsAuthenticated(true);
         sessionStorage.setItem("admin_passcode", keyToUse);
         setMetrics(data.metrics);
-        setEvents(data.events || []);
+        setGroupedVisitors(data.groupedVisitors || []);
+        setBlockedIPs(data.blockedIPs || []);
       } else {
         setIsAuthenticated(false);
         setErrorMsg(data.error || "Invalid Admin Passcode.");
@@ -83,6 +90,31 @@ export default function AdminDashboard() {
       setErrorMsg("Failed to connect to analytics server.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleBlockIP = async (ip: string, isCurrentlyBlocked: boolean) => {
+    const action = isCurrentlyBlocked ? "UNBLOCK" : "BLOCK";
+    if (!confirm(`Are you sure you want to ${action} IP address: ${ip}?`)) return;
+
+    try {
+      const res = await fetch("/api/admin/block-ip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          passcode,
+          ip,
+          action,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        fetchAnalytics(passcode);
+      } else {
+        alert(data.error || "Failed to update IP block status.");
+      }
+    } catch {
+      alert("Error connecting to server.");
     }
   };
 
@@ -101,16 +133,14 @@ export default function AdminDashboard() {
     setPasscode("");
   };
 
-  const filteredEvents = events.filter((evt) => {
+  const filteredVisitors = groupedVisitors.filter((visitor) => {
     const query = searchFilter.toLowerCase();
     return (
-      evt.ip.toLowerCase().includes(query) ||
-      evt.visitorId.toLowerCase().includes(query) ||
-      evt.action.toLowerCase().includes(query) ||
-      (evt.linkText && evt.linkText.toLowerCase().includes(query)) ||
-      evt.deviceType.toLowerCase().includes(query) ||
-      evt.os.toLowerCase().includes(query) ||
-      evt.browser.toLowerCase().includes(query)
+      visitor.ip.toLowerCase().includes(query) ||
+      visitor.visitorId.toLowerCase().includes(query) ||
+      visitor.deviceType.toLowerCase().includes(query) ||
+      visitor.os.toLowerCase().includes(query) ||
+      visitor.browser.toLowerCase().includes(query)
     );
   });
 
@@ -199,17 +229,16 @@ export default function AdminDashboard() {
                   TELEMETRY DASHBOARD
                 </h1>
                 <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono font-bold">
-                  UNIQUE DEVICE DETECTOR
+                  IP GROUPING & BLOCKER
                 </span>
               </div>
               <p className="text-xs font-mono text-zinc-400">
-                Tracking Unique Devices, Network IPs & Real Visitor Hits (Excluding Localhost & Developer PC)
+                Grouped Unique Devices, Timestamp Timelines & IP Access Control
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Developer PC Exclusion Toggle */}
             <button
               onClick={toggleExcludePC}
               className={`px-4 py-2 rounded-full text-xs font-mono font-bold border transition-all flex items-center gap-2 cursor-pointer ${
@@ -240,88 +269,93 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Telemetry Metric Cards */}
+        {/* Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Unique Devices Metric */}
           <div className="glass-panel p-6 rounded-2xl border border-amber-500/40 hud-box space-y-4 bg-gradient-to-b from-amber-950/30 via-zinc-950 to-black shadow-[0_0_25px_rgba(212,175,55,0.2)]">
             <div className="flex items-center justify-between text-amber-400 text-xs font-mono font-bold">
-              <span>UNIQUE DEVICES (NEW USERS)</span>
-              <Users className="w-4 h-4 text-amber-300" />
+              <span>UNIQUE NETWORK IPS</span>
+              <Globe className="w-4 h-4 text-amber-300" />
             </div>
             <div className="text-4xl font-black font-mono text-white flex items-baseline gap-2">
-              <span>{metrics.uniqueDeviceCount}</span>
-              <span className="text-xs text-amber-400 font-mono font-bold uppercase">DEVICES</span>
+              <span>{metrics.uniqueIPs}</span>
+              <span className="text-xs text-amber-400 font-mono font-bold uppercase">IPS</span>
             </div>
             <div className="text-[10px] font-mono text-amber-400 flex items-center gap-1.5 font-bold">
               <Sparkles className="w-3 h-3" />
-              <span>Distinct Hardware Fingerprints</span>
+              <span>Distinct Network Addresses</span>
             </div>
           </div>
 
           <div className="glass-panel p-6 rounded-2xl border border-white/10 hud-box space-y-4">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
-              <span>UNIQUE NETWORK IPS</span>
-              <Globe className="w-4 h-4 text-amber-400" />
+              <span>UNIQUE DEVICES</span>
+              <Users className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-4xl font-black font-mono text-white">
-              {metrics.uniqueIPs}
+              {metrics.uniqueDeviceCount}
             </div>
             <div className="text-[10px] font-mono text-zinc-400">
-              🌐 Distinct IP Addresses
+              💻 Distinct Hardware Fingerprints
             </div>
           </div>
 
           <div className="glass-panel p-6 rounded-2xl border border-white/10 hud-box space-y-4">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
-              <span>TOTAL VISITS & CLICKS</span>
+              <span>TOTAL ACTIONS & HITS</span>
               <Clock className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-4xl font-black font-mono text-white">
               {metrics.totalHits}
             </div>
             <div className="text-[10px] font-mono text-zinc-400">
-              ⚡ De-duplicated Action Hits
+              ⚡ De-duplicated Interactions
             </div>
           </div>
 
-          <div className="glass-panel p-6 rounded-2xl border border-white/10 hud-box space-y-4">
-            <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
-              <span>DEVICE BREAKDOWN</span>
-              <Smartphone className="w-4 h-4 text-amber-400" />
+          <div className="glass-panel p-6 rounded-2xl border border-red-500/30 hud-box space-y-4 bg-red-950/10">
+            <div className="flex items-center justify-between text-red-400 text-xs font-mono font-bold">
+              <span>BLOCKED IPS</span>
+              <Ban className="w-4 h-4 text-red-400" />
             </div>
-            <div className="text-xs font-mono space-y-1 pt-1 text-zinc-300">
-              <div className="flex justify-between">
-                <span>Desktop:</span>
-                <span className="font-bold text-white">{metrics.deviceCounts.Desktop || 0}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Mobile:</span>
-                <span className="font-bold text-amber-400">{metrics.deviceCounts.Mobile || 0}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Tablet:</span>
-                <span className="font-bold text-yellow-300">{metrics.deviceCounts.Tablet || 0}</span>
-              </div>
+            <div className="text-4xl font-black font-mono text-white">
+              {metrics.blockedIPCount}
+            </div>
+            <div className="text-[10px] font-mono text-red-400 font-bold">
+              🚫 Access Denied (HTTP 403)
             </div>
           </div>
         </div>
 
-        {/* Visitor Log Table */}
+        {/* Tab Switcher & Search */}
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-            <div className="space-y-1">
-              <h2 className="text-lg font-bold text-white font-sans">
-                LIVE AUDIT TRAIL
-              </h2>
-              <p className="text-xs font-mono text-zinc-400">
-                Excludes Localhost/Developer PC • De-duplicates Rapid Page Reload Hits
-              </p>
+            <div className="flex items-center bg-white/[0.04] p-1.5 rounded-full border border-white/10 text-xs font-mono">
+              <button
+                onClick={() => setActiveTab("grouped")}
+                className={`px-5 py-2 rounded-full font-bold transition-all cursor-pointer ${
+                  activeTab === "grouped"
+                    ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(212,175,55,0.6)]"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                GROUPED VISITOR IPS ({groupedVisitors.length})
+              </button>
+              <button
+                onClick={() => setActiveTab("blocked")}
+                className={`px-5 py-2 rounded-full font-bold transition-all cursor-pointer ${
+                  activeTab === "blocked"
+                    ? "bg-red-600 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                BLOCKED IPS MANAGEMENT ({blockedIPs.length})
+              </button>
             </div>
 
             <div className="relative max-w-xs w-full">
               <input
                 type="text"
-                placeholder="Search IP, visitor ID, device..."
+                placeholder="Search IP, device, OS..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
                 className="w-full px-4 py-2 pl-9 rounded-xl bg-white/[0.04] border border-white/10 text-white placeholder-zinc-500 text-xs focus:outline-none focus:border-amber-400 font-mono transition-colors"
@@ -330,140 +364,260 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-zinc-950 overflow-x-auto hud-box">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-white/[0.03] text-amber-400 border-b border-white/10 uppercase tracking-wider text-[10px]">
-                <tr>
-                  <th className="p-4">Timestamp</th>
-                  <th className="p-4">Visitor Device ID</th>
-                  <th className="p-4">IP Address</th>
-                  <th className="p-4">Device & OS</th>
-                  <th className="p-4">Action / Target</th>
-                  <th className="p-4 text-right">Details</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5">
-                {filteredEvents.length === 0 ? (
+          {/* TAB 1: GROUPED IP VISITORS TABLE */}
+          {activeTab === "grouped" && (
+            <div className="rounded-2xl border border-white/10 bg-zinc-950 overflow-x-auto hud-box">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-white/[0.03] text-amber-400 border-b border-white/10 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <td colSpan={6} className="p-8 text-center text-zinc-500">
-                      No visitor telemetry recorded yet. Share the website link to see new device visits!
-                    </td>
+                    <th className="p-4">Visitor IP Address</th>
+                    <th className="p-4">Device & OS</th>
+                    <th className="p-4">Total Visits</th>
+                    <th className="p-4">Latest Active Timestamp</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Actions</th>
                   </tr>
-                ) : (
-                  filteredEvents.map((evt) => (
-                    <tr key={evt.id} className="hover:bg-white/[0.02] transition-colors">
-                      <td className="p-4 text-zinc-400 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <Clock className="w-3 h-3 text-amber-500/60" />
-                          <span>{new Date(evt.timestamp).toLocaleString()}</span>
-                        </div>
-                      </td>
-
-                      <td className="p-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {evt.isNewDevice ? (
-                            <span className="px-2 py-0.5 rounded bg-amber-400 text-black font-bold text-[9px] uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.6)]">
-                              NEW DEVICE ✨
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded bg-white/[0.05] text-zinc-400 text-[9px] uppercase">
-                              REPEAT VISIT
-                            </span>
-                          )}
-                          <span className="text-zinc-300 font-mono text-[11px]">
-                            {evt.visitorId.substring(0, 16)}...
-                          </span>
-                        </div>
-                      </td>
-
-                      <td className="p-4 font-bold text-white whitespace-nowrap">
-                        <span className="px-2.5 py-1 rounded bg-amber-950/60 border border-amber-500/30 text-amber-300">
-                          {evt.ip}
-                        </span>
-                      </td>
-
-                      <td className="p-4 text-zinc-300 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {evt.deviceType === "Mobile" ? (
-                            <Smartphone className="w-3.5 h-3.5 text-amber-400" />
-                          ) : evt.deviceType === "Tablet" ? (
-                            <Tablet className="w-3.5 h-3.5 text-amber-400" />
-                          ) : (
-                            <Monitor className="w-3.5 h-3.5 text-amber-400" />
-                          )}
-                          <span>{evt.deviceType} ({evt.os} • {evt.browser})</span>
-                        </div>
-                      </td>
-
-                      <td className="p-4 text-zinc-200">
-                        {evt.linkText ? (
-                          <span className="px-2 py-0.5 rounded bg-white/[0.05] border border-white/10 text-white font-semibold">
-                            Clicked: &quot;{evt.linkText}&quot;
-                          </span>
-                        ) : (
-                          <span className="text-zinc-500">Page Visit ({evt.path})</span>
-                        )}
-                      </td>
-
-                      <td className="p-4 text-right whitespace-nowrap">
-                        <button
-                          onClick={() => setSelectedEvent(evt)}
-                          className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-amber-400 hover:text-black text-zinc-300 transition-colors cursor-pointer"
-                          title="View Full Telemetry"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                        </button>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {filteredVisitors.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-zinc-500">
+                        No visitor devices logged matching search filter.
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                  ) : (
+                    filteredVisitors.map((visitor) => (
+                      <tr key={visitor.ip} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="p-4 font-bold text-white whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded bg-amber-950/60 border border-amber-500/30 text-amber-300 font-mono">
+                            {visitor.ip}
+                          </span>
+                        </td>
+
+                        <td className="p-4 text-zinc-300 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            {visitor.deviceType === "Mobile" ? (
+                              <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                            ) : visitor.deviceType === "Tablet" ? (
+                              <Tablet className="w-3.5 h-3.5 text-amber-400" />
+                            ) : (
+                              <Monitor className="w-3.5 h-3.5 text-amber-400" />
+                            )}
+                            <span>{visitor.deviceType} ({visitor.os} • {visitor.browser})</span>
+                          </div>
+                        </td>
+
+                        <td className="p-4 font-bold text-white whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded bg-white/[0.05] border border-white/10 text-amber-400">
+                            {visitor.totalVisits} {visitor.totalVisits === 1 ? "Visit" : "Visits"}
+                          </span>
+                        </td>
+
+                        <td className="p-4 text-zinc-400 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3 h-3 text-amber-500/60" />
+                            <span>{new Date(visitor.lastSeen).toLocaleString()}</span>
+                          </div>
+                        </td>
+
+                        <td className="p-4 whitespace-nowrap">
+                          {visitor.isBlocked ? (
+                            <span className="px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-500/40 text-[9px] font-bold uppercase">
+                              BLOCKED 🚫
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-[9px] font-bold uppercase">
+                              ALLOWED ✅
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="p-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setSelectedGroup(visitor)}
+                              className="px-3 py-1 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-300 hover:bg-amber-400 hover:text-black font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                              <span>View Timestamps ({visitor.history.length})</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleToggleBlockIP(visitor.ip, visitor.isBlocked)}
+                              className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                visitor.isBlocked
+                                  ? "bg-emerald-950 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black"
+                                  : "bg-red-950 border border-red-500/40 text-red-300 hover:bg-red-600 hover:text-white"
+                              }`}
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                              <span>{visitor.isBlocked ? "Unblock IP" : "Block IP"}</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 2: BLOCKED IPS MANAGEMENT */}
+          {activeTab === "blocked" && (
+            <div className="space-y-4">
+              <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/30 text-red-300 text-xs font-mono flex items-center gap-3">
+                <AlertTriangle className="w-5 h-5 shrink-0 text-red-400" />
+                <span>
+                  Blocked IP addresses are immediately served an <strong>HTTP 403 Access Denied Screen</strong> upon visiting the website.
+                </span>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-zinc-950 overflow-x-auto hud-box">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead className="bg-white/[0.03] text-red-400 border-b border-white/10 uppercase tracking-wider text-[10px]">
+                    <tr>
+                      <th className="p-4">Blocked Network IP Address</th>
+                      <th className="p-4">Security Enforcement</th>
+                      <th className="p-4 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {blockedIPs.length === 0 ? (
+                      <tr>
+                        <td colSpan={3} className="p-8 text-center text-zinc-500">
+                          No IP addresses are currently blocked.
+                        </td>
+                      </tr>
+                    ) : (
+                      blockedIPs.map((blockedIP) => (
+                        <tr key={blockedIP} className="hover:bg-white/[0.02] transition-colors">
+                          <td className="p-4 font-bold text-white whitespace-nowrap">
+                            <span className="px-2.5 py-1 rounded bg-red-950/80 border border-red-500/40 text-red-300">
+                              {blockedIP}
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-zinc-400">
+                            HTTP 403 Access Denied Enforced
+                          </td>
+
+                          <td className="p-4 text-right">
+                            <button
+                              onClick={() => handleToggleBlockIP(blockedIP, true)}
+                              className="px-4 py-1.5 rounded-lg bg-emerald-950 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Unblock IP Address</span>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* User-Agent Inspector Modal */}
-      {selectedEvent && (
+      {/* TIMESTAMPS & ACTIVITY HISTORY MODAL FOR SELECTED IP */}
+      {selectedGroup && (
         <div
-          onClick={() => setSelectedEvent(null)}
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 select-none cursor-pointer"
+          onClick={() => setSelectedGroup(null)}
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-8 animate-fade-in cursor-pointer select-none"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="max-w-xl w-full p-6 rounded-3xl bg-zinc-950 border border-amber-500/40 space-y-4 hud-box"
+            className="max-w-3xl w-full p-6 sm:p-8 rounded-3xl bg-zinc-950 border border-amber-500/40 space-y-6 hud-box max-h-[85vh] flex flex-col"
           >
-            <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-sm font-bold text-white font-mono uppercase tracking-wider">
-                RAW USER-AGENT & DEVICE INSPECTOR
-              </h3>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <span className="px-3 py-1 rounded bg-amber-950 border border-amber-500/40 text-amber-300 font-mono font-bold text-sm">
+                    {selectedGroup.ip}
+                  </span>
+                  <span className="text-xs font-mono text-zinc-400">
+                    {selectedGroup.deviceType} ({selectedGroup.os} • {selectedGroup.browser})
+                  </span>
+                </div>
+                <p className="text-xs font-mono text-amber-400">
+                  Total Visits: {selectedGroup.totalVisits} Recorded Hits
+                </p>
+              </div>
+
               <button
-                onClick={() => setSelectedEvent(null)}
-                className="text-zinc-400 hover:text-white"
+                onClick={() => setSelectedGroup(null)}
+                className="p-2 rounded-full bg-white/10 hover:bg-amber-400 hover:text-black text-white transition-colors cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3 text-xs font-mono">
-              <div>
-                <span className="text-amber-400 block text-[10px]">VISITOR DEVICE ID:</span>
-                <span className="text-white font-bold">{selectedEvent.visitorId}</span>
+            {/* Timestamps List Container */}
+            <div className="overflow-y-auto space-y-3 pr-2 flex-1 scrollbar-none">
+              <h4 className="text-xs font-mono text-amber-400 font-bold uppercase tracking-wider">
+                CHRONOLOGICAL TIMESTAMP TIMELINE ({selectedGroup.history.length} ENTRIES)
+              </h4>
+
+              <div className="space-y-2">
+                {selectedGroup.history.map((item, index) => (
+                  <div
+                    key={item.id || index}
+                    className="p-4 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono hover:border-amber-500/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-full bg-amber-950/80 border border-amber-500/30 text-amber-400 text-[10px] flex items-center justify-center font-bold">
+                        #{selectedGroup.history.length - index}
+                      </span>
+                      <div>
+                        <span className="text-white font-bold block">
+                          {new Date(item.timestamp).toLocaleString()}
+                        </span>
+                        <span className="text-zinc-500 text-[10px]">
+                          ISO: {item.timestamp}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      {item.linkText ? (
+                        <span className="px-2.5 py-1 rounded bg-amber-950/60 border border-amber-500/30 text-amber-300 font-bold">
+                          Clicked: &quot;{item.linkText}&quot;
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded bg-white/[0.05] border border-white/10 text-zinc-400">
+                          Page Visit ({item.path})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <span className="text-amber-400 block text-[10px]">IP ADDRESS:</span>
-                <span className="text-amber-300 font-bold">{selectedEvent.ip}</span>
-              </div>
-              <div>
-                <span className="text-amber-400 block text-[10px]">TIMESTAMP:</span>
-                <span className="text-zinc-300">{new Date(selectedEvent.timestamp).toString()}</span>
-              </div>
-              <div>
-                <span className="text-amber-400 block text-[10px]">RAW USER-AGENT STRING:</span>
-                <div className="p-3 rounded-xl bg-black border border-white/10 text-zinc-300 text-[11px] break-all leading-relaxed font-mono">
-                  {selectedEvent.userAgent}
-                </div>
-              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="pt-4 border-t border-white/10 flex items-center justify-between">
+              <span className="text-[10px] font-mono text-zinc-500">
+                Visitor ID: {selectedGroup.visitorId}
+              </span>
+
+              <button
+                onClick={() => {
+                  handleToggleBlockIP(selectedGroup.ip, selectedGroup.isBlocked);
+                  setSelectedGroup(null);
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-2 cursor-pointer ${
+                  selectedGroup.isBlocked
+                    ? "bg-emerald-950 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black"
+                    : "bg-red-950 border border-red-500/40 text-red-300 hover:bg-red-600 hover:text-white"
+                }`}
+              >
+                <Ban className="w-4 h-4" />
+                <span>{selectedGroup.isBlocked ? "Unblock IP Address" : "Block This IP Address"}</span>
+              </button>
             </div>
           </div>
         </div>
