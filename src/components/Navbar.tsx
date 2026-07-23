@@ -4,19 +4,27 @@ import { useEffect, useState } from "react";
 import { Menu, X, ArrowUpRight } from "lucide-react";
 
 const NAV_LINKS = [
-  { name: "About", href: "#about" },
-  { name: "Domains", href: "#domains" },
-  { name: "Projects", href: "#projects" },
-  { name: "Achievements", href: "#achievements" },
-  { name: "Gallery", href: "#gallery" },
-  { name: "Team", href: "#team" },
-  { name: "FAQs", href: "#faqs" },
+  { name: "About", targetId: "about" },
+  { name: "Domains", targetId: "domains" },
+  { name: "Projects", targetId: "projects" },
+  { name: "Achievements", targetId: "achievements" },
+  { name: "Gallery", targetId: "gallery" },
+  { name: "Team", targetId: "team" },
+  { name: "FAQs", targetId: "faqs" },
 ];
 
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSection, setActiveSection] = useState("");
+
+  const scrollToSection = (targetId: string, e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    const el = document.getElementById(targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -26,7 +34,7 @@ export default function Navbar() {
         setIsScrolled(false);
       }
 
-      const sections = NAV_LINKS.map((link) => link.href.substring(1));
+      const sections = NAV_LINKS.map((link) => link.targetId);
       const scrollPosition = window.scrollY + 200;
 
       for (const sectionId of sections) {
@@ -60,7 +68,13 @@ export default function Navbar() {
         }`}
       >
         {/* Brand / Official Logo */}
-        <a href="#" className="flex items-center gap-3 group">
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+          className="flex items-center gap-3 group text-left cursor-pointer"
+        >
           {/* eslint-disable-next-html-element-for-img */}
           <img
             src="/logo.png"
@@ -75,43 +89,43 @@ export default function Navbar() {
               DPS AZAAD NAGAR
             </span>
           </div>
-        </a>
+        </button>
 
         {/* Desktop Navigation Links */}
         <div className="hidden md:flex items-center gap-1 bg-white/[0.03] p-1.5 rounded-full border border-white/[0.08]">
           {NAV_LINKS.map((link) => {
-            const isActive = activeSection === link.href.substring(1);
+            const isActive = activeSection === link.targetId;
             return (
-              <a
+              <button
                 key={link.name}
-                href={link.href}
-                className={`relative px-4 py-1.5 text-xs font-medium rounded-full transition-all duration-300 ${
+                onClick={(e) => scrollToSection(link.targetId, e)}
+                className={`relative px-4 py-1.5 text-xs font-medium rounded-full transition-all duration-300 cursor-pointer ${
                   isActive
                     ? "text-black bg-amber-400 border border-amber-300 font-bold shadow-[0_0_15px_rgba(212,175,55,0.6)]"
                     : "text-zinc-400 hover:text-white hover:bg-white/5"
                 }`}
               >
                 {link.name}
-              </a>
+              </button>
             );
           })}
         </div>
 
         {/* Action Button */}
         <div className="hidden md:flex items-center gap-3">
-          <a
-            href="#join"
-            className="group relative inline-flex items-center gap-2 px-5 py-2 text-xs font-mono font-bold text-black bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-600 hover:from-amber-200 hover:to-amber-500 rounded-full border border-amber-200 shadow-[0_0_25px_rgba(212,175,55,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 uppercase tracking-wider"
+          <button
+            onClick={(e) => scrollToSection("join", e)}
+            className="group relative inline-flex items-center gap-2 px-5 py-2 text-xs font-mono font-bold text-black bg-gradient-to-r from-amber-300 via-yellow-500 to-amber-600 hover:from-amber-200 hover:to-amber-500 rounded-full border border-amber-200 shadow-[0_0_25px_rgba(212,175,55,0.5)] transition-all duration-300 hover:scale-105 active:scale-95 uppercase tracking-wider cursor-pointer"
           >
             <span>JOIN CLUB</span>
             <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </a>
+          </button>
         </div>
 
         {/* Mobile Hamburger Toggle */}
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 text-zinc-300 hover:text-amber-400 rounded-full hover:bg-white/5 transition-colors"
+          className="md:hidden p-2 text-zinc-300 hover:text-amber-400 rounded-full hover:bg-white/5 transition-colors cursor-pointer"
           aria-label="Toggle menu"
         >
           {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -123,24 +137,28 @@ export default function Navbar() {
         <div className="fixed inset-0 top-20 z-30 bg-black/95 backdrop-blur-2xl md:hidden flex flex-col p-6 border-b border-amber-500/20 animate-fade-in">
           <div className="flex flex-col gap-4 py-4">
             {NAV_LINKS.map((link) => (
-              <a
+              <button
                 key={link.name}
-                href={link.href}
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-lg font-medium text-zinc-300 hover:text-amber-400 transition-colors py-2 border-b border-white/5 flex items-center justify-between"
+                onClick={(e) => {
+                  setMobileMenuOpen(false);
+                  scrollToSection(link.targetId, e);
+                }}
+                className="text-lg font-medium text-zinc-300 hover:text-amber-400 transition-colors py-2 border-b border-white/5 flex items-center justify-between text-left cursor-pointer"
               >
                 <span>{link.name}</span>
                 <ArrowUpRight className="w-4 h-4 text-amber-500" />
-              </a>
+              </button>
             ))}
-            <a
-              href="#join"
-              onClick={() => setMobileMenuOpen(false)}
-              className="mt-4 w-full py-3.5 text-center font-bold text-black bg-amber-400 rounded-xl shadow-[0_0_25px_rgba(212,175,55,0.5)] flex items-center justify-center gap-2 font-mono uppercase"
+            <button
+              onClick={(e) => {
+                setMobileMenuOpen(false);
+                scrollToSection("join", e);
+              }}
+              className="mt-4 w-full py-3.5 text-center font-bold text-black bg-amber-400 rounded-xl shadow-[0_0_25px_rgba(212,175,55,0.5)] flex items-center justify-center gap-2 font-mono uppercase cursor-pointer"
             >
               <span>Join DPS Digits</span>
               <ArrowUpRight className="w-4 h-4" />
-            </a>
+            </button>
           </div>
         </div>
       )}
