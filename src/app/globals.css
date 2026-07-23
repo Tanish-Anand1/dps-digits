@@ -1,0 +1,225 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-black: #000000;
+    --bg-dark: #070707;
+    --bg-surface: #0e0e10;
+    --dps-gold: #D4AF37;
+    --dps-gold-light: #F59E0B;
+    --dps-gold-glow: rgba(212, 175, 55, 0.4);
+    --border-dim: rgba(255, 255, 255, 0.08);
+    --border-bright: rgba(212, 175, 55, 0.3);
+    --text-primary: #ffffff;
+    --text-secondary: #a1a1aa;
+    --text-muted: #71717a;
+  }
+
+  html, body {
+    background-color: #000000 !important;
+    color: #ffffff !important;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::selection {
+    background-color: #D4AF37;
+    color: #000000;
+  }
+}
+
+/* Custom Gold Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.4);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #D4AF37;
+}
+
+/* Noise & Cyber Texture Overlays */
+.bg-noise {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* Laser Tech Scanline Overlay */
+.bg-scanlines {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0) 50%,
+    rgba(212, 175, 55, 0.04) 50%,
+    rgba(212, 175, 55, 0.04)
+  );
+  background-size: 100% 4px;
+}
+
+/* Typography Gradient Utilities */
+.text-gradient-white {
+  background: linear-gradient(180deg, #ffffff 0%, rgba(255, 255, 255, 0.65) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-gold {
+  background: linear-gradient(135deg, #FFF5C0 0%, #E6C200 45%, #D4AF37 70%, #996515 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gradient-subtle {
+  background: linear-gradient(180deg, #a1a1aa 0%, #52525b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Glassmorphism Panels with Gold Glow */
+.glass-panel {
+  background: rgba(14, 14, 16, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.glass-panel-hover {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-panel-hover:hover {
+  background: rgba(22, 22, 26, 0.85);
+  border-color: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.8), 0 0 25px 0 rgba(212, 175, 55, 0.2);
+}
+
+.glass-pill {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+/* HIGH-TECH CYBER RGB-SPLIT GLITCH SYSTEM */
+.glitch-text {
+  position: relative;
+  display: inline-block;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.8;
+}
+
+.glitch-text::before {
+  left: 2px;
+  text-shadow: -2px 0 #D4AF37;
+  clip: rect(24px, 550px, 90px, 0);
+  animation: glitch-anim-1 2s infinite linear alternate-reverse;
+}
+
+.glitch-text::after {
+  left: -2px;
+  text-shadow: -2px 0 #00f0ff;
+  clip: rect(85px, 550px, 140px, 0);
+  animation: glitch-anim-2 2.5s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-anim-1 {
+  0% { clip: rect(15px, 9999px, 45px, 0); transform: skew(0.6deg); }
+  15% { clip: rect(70px, 9999px, 15px, 0); transform: skew(-0.8deg); }
+  30% { clip: rect(30px, 9999px, 85px, 0); transform: skew(0.3deg); }
+  45% { clip: rect(90px, 9999px, 20px, 0); transform: skew(-0.4deg); }
+  60% { clip: rect(10px, 9999px, 60px, 0); transform: skew(0.7deg); }
+  75% { clip: rect(50px, 9999px, 95px, 0); transform: skew(-0.2deg); }
+  100% { clip: rect(25px, 9999px, 40px, 0); transform: skew(0deg); }
+}
+
+@keyframes glitch-anim-2 {
+  0% { clip: rect(80px, 9999px, 20px, 0); transform: skew(-0.5deg); }
+  15% { clip: rect(10px, 9999px, 75px, 0); transform: skew(0.4deg); }
+  30% { clip: rect(60px, 9999px, 10px, 0); transform: skew(-0.7deg); }
+  45% { clip: rect(25px, 9999px, 90px, 0); transform: skew(0.3deg); }
+  60% { clip: rect(95px, 9999px, 35px, 0); transform: skew(-0.2deg); }
+  75% { clip: rect(40px, 9999px, 65px, 0); transform: skew(0.6deg); }
+  100% { clip: rect(15px, 9999px, 80px, 0); transform: skew(0deg); }
+}
+
+/* Precision Tech HUD Corner Borders */
+.hud-box {
+  position: relative;
+}
+.hud-box::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 10px;
+  height: 10px;
+  border-top: 2px solid #D4AF37;
+  border-left: 2px solid #D4AF37;
+  pointer-events: none;
+}
+.hud-box::after {
+  content: "";
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 10px;
+  height: 10px;
+  border-bottom: 2px solid #D4AF37;
+  border-right: 2px solid #D4AF37;
+  pointer-events: none;
+}
+
+/* Ambient Gold Glow Keyframe */
+@keyframes auroraPulseGold {
+  0%, 100% {
+    opacity: 0.25;
+    transform: scale(1) translate(0px, 0px);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.15) translate(25px, -25px);
+  }
+}
+
+.animate-aurora-gold {
+  animation: auroraPulseGold 10s infinite ease-in-out;
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 30s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Grid background pattern */
+.bg-grid-pattern {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(212, 175, 55, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(212, 175, 55, 0.05) 1px, transparent 1px);
+}
