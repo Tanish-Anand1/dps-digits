@@ -16,6 +16,20 @@ export interface AnalyticsEvent {
   linkText?: string;
 }
 
+export interface GroupedDeviceVisitor {
+  visitorId: string;
+  ip: string;
+  deviceType: AnalyticsEvent["deviceType"];
+  os: string;
+  browser: string;
+  userAgent: string;
+  totalVisits: number;
+  firstSeen: string;
+  lastSeen: string;
+  isBlocked: boolean;
+  history: AnalyticsEvent[];
+}
+
 export interface GroupedIPVisitor {
   ip: string;
   visitorId: string;
@@ -27,6 +41,7 @@ export interface GroupedIPVisitor {
   firstSeen: string;
   lastSeen: string;
   isBlocked: boolean;
+  devices: string[];
   history: AnalyticsEvent[];
 }
 
@@ -53,7 +68,6 @@ function ensureDataFiles() {
   }
 }
 
-// IP BLOCKING STORAGE & FUNCTIONS
 export function getBlockedIPs(): string[] {
   ensureDataFiles();
   try {
@@ -102,7 +116,6 @@ export function unblockIP(ip: string): string[] {
   return blocked;
 }
 
-// USER-AGENT PARSER
 export function parseUserAgent(ua: string): { deviceType: AnalyticsEvent["deviceType"]; os: string; browser: string } {
   let deviceType: AnalyticsEvent["deviceType"] = "Desktop";
   if (/mobile/i.test(ua)) deviceType = "Mobile";
@@ -146,7 +159,6 @@ export function logAnalyticsEvent(
   const existing = getAnalyticsEvents();
   const now = Date.now();
 
-  // Deduplicate rapid identical page views from same IP & Visitor within 8 seconds
   const isDuplicate = existing.some((e) => {
     const timeDiff = now - new Date(e.timestamp).getTime();
     return (
@@ -190,7 +202,50 @@ export function logAnalyticsEvent(
   return newEvent;
 }
 
-// GROUP EVENTS BY IP ADDRESS
+// 1. GROUP BY UNIQUE DEVICE (VISITOR ID & HARDWARE FINGERPRINT)
+export function getGroupedDevices(): GroupedDeviceVisitor[] {
+  const events = getAnalyticsEvents().filter((e) => !e.ip.includes("127.0.0.1") && !e.ip.includes("::1"));
+  const blockedList = getBlockedIPs();
+
+  const deviceMap = new Map<string, GroupedDeviceVisitor>();
+
+  events.forEach((evt) => {
+    // Unique device key: visitorId or IP+userAgent
+    const key = evt.visitorId && evt.visitorId !== "vid_unknown" ? evt.visitorId : `${evt.ip}_${evt.userAgent}`;
+
+    if (!deviceMap.has(key)) {
+      deviceMap.set(key, {
+        visitorId: evt.visitorId,
+        ip: evt.ip,
+        deviceType: evt.deviceType,
+        os: evt.os,
+        browser: evt.browser,
+        userAgent: evt.userAgent,
+        totalVisits: 0,
+        firstSeen: evt.timestamp,
+        lastSeen: evt.timestamp,
+        isBlocked: blockedList.includes(evt.ip),
+        history: [],
+      });
+    }
+
+    const device = deviceMap.get(key)!;
+    device.totalVisits += 1;
+    device.history.push(evt);
+    if (new Date(evt.timestamp) > new Date(device.lastSeen)) {
+      device.lastSeen = evt.timestamp;
+    }
+    if (new Date(evt.timestamp) < new Date(device.firstSeen)) {
+      device.firstSeen = evt.timestamp;
+    }
+  });
+
+  return Array.from(deviceMap.values()).sort(
+    (a, b) => new Date(b.lastSeen).getTime() - new Date(a.lastSeen).getTime()
+  );
+}
+
+// 2. GROUP BY NETWORK IP ADDRESS
 export function getGroupedIPVisitors(): GroupedIPVisitor[] {
   const events = getAnalyticsEvents().filter((e) => !e.ip.includes("127.0.0.1") && !e.ip.includes("::1"));
   const blockedList = getBlockedIPs();
@@ -211,6 +266,7 @@ export function getGroupedIPVisitors(): GroupedIPVisitor[] {
         firstSeen: evt.timestamp,
         lastSeen: evt.timestamp,
         isBlocked: blockedList.includes(evt.ip),
+        devices: [],
         history: [],
       });
     }
@@ -218,6 +274,9 @@ export function getGroupedIPVisitors(): GroupedIPVisitor[] {
     const group = groupsMap.get(key)!;
     group.totalVisits += 1;
     group.history.push(evt);
+    if (evt.visitorId && !group.devices.includes(evt.visitorId)) {
+      group.devices.push(evt.visitorId);
+    }
     if (new Date(evt.timestamp) > new Date(group.lastSeen)) {
       group.lastSeen = evt.timestamp;
     }

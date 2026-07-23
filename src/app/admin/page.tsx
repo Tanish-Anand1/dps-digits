@@ -19,11 +19,11 @@ import {
   Laptop,
   Ban,
   CheckCircle2,
-  ListFilter,
   History,
   AlertTriangle,
+  Layers,
 } from "lucide-react";
-import { AnalyticsEvent, GroupedIPVisitor } from "@/lib/analyticsStore";
+import { AnalyticsEvent, GroupedDeviceVisitor, GroupedIPVisitor } from "@/lib/analyticsStore";
 
 export default function AdminDashboard() {
   const [passcode, setPasscode] = useState("");
@@ -40,11 +40,13 @@ export default function AdminDashboard() {
     deviceCounts: { Desktop: 0, Mobile: 0, Tablet: 0, Unknown: 0 },
   });
 
+  const [groupedDevices, setGroupedDevices] = useState<GroupedDeviceVisitor[]>([]);
   const [groupedVisitors, setGroupedVisitors] = useState<GroupedIPVisitor[]>([]);
+  const [rawEvents, setRawEvents] = useState<AnalyticsEvent[]>([]);
   const [blockedIPs, setBlockedIPs] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState("");
-  const [selectedGroup, setSelectedGroup] = useState<GroupedIPVisitor | null>(null);
-  const [activeTab, setActiveTab] = useState<"grouped" | "blocked">("grouped");
+  const [selectedDevice, setSelectedDevice] = useState<GroupedDeviceVisitor | null>(null);
+  const [activeTab, setActiveTab] = useState<"devices" | "ips" | "raw" | "blocked">("devices");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -80,7 +82,9 @@ export default function AdminDashboard() {
         setIsAuthenticated(true);
         sessionStorage.setItem("admin_passcode", keyToUse);
         setMetrics(data.metrics);
+        setGroupedDevices(data.groupedDevices || []);
         setGroupedVisitors(data.groupedVisitors || []);
+        setRawEvents(data.events || []);
         setBlockedIPs(data.blockedIPs || []);
       } else {
         setIsAuthenticated(false);
@@ -133,14 +137,35 @@ export default function AdminDashboard() {
     setPasscode("");
   };
 
-  const filteredVisitors = groupedVisitors.filter((visitor) => {
+  const filteredDevices = groupedDevices.filter((dev) => {
+    const query = searchFilter.toLowerCase();
+    return (
+      dev.ip.toLowerCase().includes(query) ||
+      dev.visitorId.toLowerCase().includes(query) ||
+      dev.deviceType.toLowerCase().includes(query) ||
+      dev.os.toLowerCase().includes(query) ||
+      dev.browser.toLowerCase().includes(query)
+    );
+  });
+
+  const filteredIPs = groupedVisitors.filter((visitor) => {
     const query = searchFilter.toLowerCase();
     return (
       visitor.ip.toLowerCase().includes(query) ||
-      visitor.visitorId.toLowerCase().includes(query) ||
       visitor.deviceType.toLowerCase().includes(query) ||
-      visitor.os.toLowerCase().includes(query) ||
-      visitor.browser.toLowerCase().includes(query)
+      visitor.os.toLowerCase().includes(query)
+    );
+  });
+
+  const filteredRawEvents = rawEvents.filter((evt) => {
+    const query = searchFilter.toLowerCase();
+    return (
+      evt.ip.toLowerCase().includes(query) ||
+      evt.visitorId.toLowerCase().includes(query) ||
+      evt.action.toLowerCase().includes(query) ||
+      (evt.linkText && evt.linkText.toLowerCase().includes(query)) ||
+      evt.deviceType.toLowerCase().includes(query) ||
+      evt.os.toLowerCase().includes(query)
     );
   });
 
@@ -229,11 +254,11 @@ export default function AdminDashboard() {
                   TELEMETRY DASHBOARD
                 </h1>
                 <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-[10px] font-mono font-bold">
-                  IP GROUPING & BLOCKER
+                  LIVE TELEMETRY
                 </span>
               </div>
               <p className="text-xs font-mono text-zinc-400">
-                Grouped Unique Devices, Timestamp Timelines & IP Access Control
+                Unique Physical Devices, Network IPs & Real Visitor Interaction Timelines
               </p>
             </div>
           </div>
@@ -269,33 +294,33 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Metric Cards */}
+        {/* Metric Summary Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="glass-panel p-6 rounded-2xl border border-amber-500/40 hud-box space-y-4 bg-gradient-to-b from-amber-950/30 via-zinc-950 to-black shadow-[0_0_25px_rgba(212,175,55,0.2)]">
             <div className="flex items-center justify-between text-amber-400 text-xs font-mono font-bold">
-              <span>UNIQUE NETWORK IPS</span>
-              <Globe className="w-4 h-4 text-amber-300" />
+              <span>UNIQUE DEVICES</span>
+              <Users className="w-4 h-4 text-amber-300" />
             </div>
             <div className="text-4xl font-black font-mono text-white flex items-baseline gap-2">
-              <span>{metrics.uniqueIPs}</span>
-              <span className="text-xs text-amber-400 font-mono font-bold uppercase">IPS</span>
+              <span>{metrics.uniqueDeviceCount}</span>
+              <span className="text-xs text-amber-400 font-mono font-bold uppercase">DEVICES</span>
             </div>
             <div className="text-[10px] font-mono text-amber-400 flex items-center gap-1.5 font-bold">
               <Sparkles className="w-3 h-3" />
-              <span>Distinct Network Addresses</span>
+              <span>Distinct Hardware Fingerprints</span>
             </div>
           </div>
 
           <div className="glass-panel p-6 rounded-2xl border border-white/10 hud-box space-y-4">
             <div className="flex items-center justify-between text-zinc-400 text-xs font-mono">
-              <span>UNIQUE DEVICES</span>
-              <Users className="w-4 h-4 text-amber-400" />
+              <span>UNIQUE NETWORK IPS</span>
+              <Globe className="w-4 h-4 text-amber-400" />
             </div>
             <div className="text-4xl font-black font-mono text-white">
-              {metrics.uniqueDeviceCount}
+              {metrics.uniqueIPs}
             </div>
             <div className="text-[10px] font-mono text-zinc-400">
-              💻 Distinct Hardware Fingerprints
+              🌐 Distinct IP Addresses
             </div>
           </div>
 
@@ -321,34 +346,57 @@ export default function AdminDashboard() {
               {metrics.blockedIPCount}
             </div>
             <div className="text-[10px] font-mono text-red-400 font-bold">
-              🚫 Access Denied (HTTP 403)
+              🚫 Access Denied Enforced
             </div>
           </div>
         </div>
 
-        {/* Tab Switcher & Search */}
+        {/* View Mode Tabs & Search */}
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-            <div className="flex items-center bg-white/[0.04] p-1.5 rounded-full border border-white/10 text-xs font-mono">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-white/10 pb-4">
+            <div className="flex flex-wrap items-center bg-white/[0.04] p-1.5 rounded-full border border-white/10 text-xs font-mono gap-1">
               <button
-                onClick={() => setActiveTab("grouped")}
-                className={`px-5 py-2 rounded-full font-bold transition-all cursor-pointer ${
-                  activeTab === "grouped"
+                onClick={() => setActiveTab("devices")}
+                className={`px-4 py-2 rounded-full font-bold transition-all cursor-pointer ${
+                  activeTab === "devices"
                     ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(212,175,55,0.6)]"
                     : "text-zinc-400 hover:text-white"
                 }`}
               >
-                GROUPED VISITOR IPS ({groupedVisitors.length})
+                GROUP BY DEVICE ({groupedDevices.length})
               </button>
+
+              <button
+                onClick={() => setActiveTab("ips")}
+                className={`px-4 py-2 rounded-full font-bold transition-all cursor-pointer ${
+                  activeTab === "ips"
+                    ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(212,175,55,0.6)]"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                GROUP BY NETWORK IP ({groupedVisitors.length})
+              </button>
+
+              <button
+                onClick={() => setActiveTab("raw")}
+                className={`px-4 py-2 rounded-full font-bold transition-all cursor-pointer ${
+                  activeTab === "raw"
+                    ? "bg-white text-black font-extrabold"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                ALL RAW HITS ({rawEvents.length})
+              </button>
+
               <button
                 onClick={() => setActiveTab("blocked")}
-                className={`px-5 py-2 rounded-full font-bold transition-all cursor-pointer ${
+                className={`px-4 py-2 rounded-full font-bold transition-all cursor-pointer ${
                   activeTab === "blocked"
                     ? "bg-red-600 text-white shadow-[0_0_15px_rgba(239,68,68,0.5)]"
                     : "text-zinc-400 hover:text-white"
                 }`}
               >
-                BLOCKED IPS MANAGEMENT ({blockedIPs.length})
+                BLOCKED IPS ({blockedIPs.length})
               </button>
             </div>
 
@@ -364,12 +412,13 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* TAB 1: GROUPED IP VISITORS TABLE */}
-          {activeTab === "grouped" && (
+          {/* TAB 1: GROUPED BY UNIQUE DEVICE (DEFAULT VIEW) */}
+          {activeTab === "devices" && (
             <div className="rounded-2xl border border-white/10 bg-zinc-950 overflow-x-auto hud-box">
               <table className="w-full text-left text-xs font-mono">
                 <thead className="bg-white/[0.03] text-amber-400 border-b border-white/10 uppercase tracking-wider text-[10px]">
                   <tr>
+                    <th className="p-4">Unique Device ID</th>
                     <th className="p-4">Visitor IP Address</th>
                     <th className="p-4">Device & OS</th>
                     <th className="p-4">Total Visits</th>
@@ -379,19 +428,134 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filteredVisitors.length === 0 ? (
+                  {filteredDevices.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-zinc-500">
-                        No visitor devices logged matching search filter.
+                      <td colSpan={7} className="p-8 text-center text-zinc-500">
+                        No unique devices logged matching search query.
                       </td>
                     </tr>
                   ) : (
-                    filteredVisitors.map((visitor) => (
+                    filteredDevices.map((device, idx) => (
+                      <tr key={device.visitorId + idx} className="hover:bg-white/[0.02] transition-colors">
+                        <td className="p-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded bg-amber-400 text-black font-bold text-[9px] uppercase tracking-wider shadow-[0_0_10px_rgba(212,175,55,0.6)]">
+                              DEVICE #{idx + 1}
+                            </span>
+                            <span className="text-zinc-300 font-mono text-[11px] font-bold">
+                              {device.visitorId.substring(0, 18)}...
+                            </span>
+                          </div>
+                        </td>
+
+                        <td className="p-4 font-bold text-white whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded bg-amber-950/60 border border-amber-500/30 text-amber-300 font-mono">
+                            {device.ip}
+                          </span>
+                        </td>
+
+                        <td className="p-4 text-zinc-300 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            {device.deviceType === "Mobile" ? (
+                              <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                            ) : device.deviceType === "Tablet" ? (
+                              <Tablet className="w-3.5 h-3.5 text-amber-400" />
+                            ) : (
+                              <Monitor className="w-3.5 h-3.5 text-amber-400" />
+                            )}
+                            <span>{device.deviceType} ({device.os} • {device.browser})</span>
+                          </div>
+                        </td>
+
+                        <td className="p-4 font-bold text-white whitespace-nowrap">
+                          <span className="px-2.5 py-1 rounded bg-white/[0.05] border border-white/10 text-amber-400">
+                            {device.totalVisits} {device.totalVisits === 1 ? "Hit" : "Hits"}
+                          </span>
+                        </td>
+
+                        <td className="p-4 text-zinc-400 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3 h-3 text-amber-500/60" />
+                            <span>{new Date(device.lastSeen).toLocaleString()}</span>
+                          </div>
+                        </td>
+
+                        <td className="p-4 whitespace-nowrap">
+                          {device.isBlocked ? (
+                            <span className="px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-500/40 text-[9px] font-bold uppercase">
+                              BLOCKED 🚫
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-500/40 text-[9px] font-bold uppercase">
+                              ALLOWED ✅
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="p-4 text-right whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => setSelectedDevice(device)}
+                              className="px-3 py-1 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-300 hover:bg-amber-400 hover:text-black font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <History className="w-3.5 h-3.5" />
+                              <span>Timestamps ({device.history.length})</span>
+                            </button>
+
+                            <button
+                              onClick={() => handleToggleBlockIP(device.ip, device.isBlocked)}
+                              className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                device.isBlocked
+                                  ? "bg-emerald-950 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black"
+                                  : "bg-red-950 border border-red-500/40 text-red-300 hover:bg-red-600 hover:text-white"
+                              }`}
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                              <span>{device.isBlocked ? "Unblock IP" : "Block IP"}</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 2: GROUPED BY NETWORK IP */}
+          {activeTab === "ips" && (
+            <div className="rounded-2xl border border-white/10 bg-zinc-950 overflow-x-auto hud-box">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-white/[0.03] text-amber-400 border-b border-white/10 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="p-4">Network IP Address</th>
+                    <th className="p-4">Devices Count</th>
+                    <th className="p-4">Device & OS</th>
+                    <th className="p-4">Total Hits</th>
+                    <th className="p-4">Latest Active Timestamp</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {filteredIPs.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-zinc-500">
+                        No network IPs logged.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredIPs.map((visitor) => (
                       <tr key={visitor.ip} className="hover:bg-white/[0.02] transition-colors">
                         <td className="p-4 font-bold text-white whitespace-nowrap">
                           <span className="px-2.5 py-1 rounded bg-amber-950/60 border border-amber-500/30 text-amber-300 font-mono">
                             {visitor.ip}
                           </span>
+                        </td>
+
+                        <td className="p-4 font-bold text-amber-400 whitespace-nowrap">
+                          {visitor.devices.length} {visitor.devices.length === 1 ? "Device" : "Devices"}
                         </td>
 
                         <td className="p-4 text-zinc-300 whitespace-nowrap">
@@ -409,7 +573,7 @@ export default function AdminDashboard() {
 
                         <td className="p-4 font-bold text-white whitespace-nowrap">
                           <span className="px-2.5 py-1 rounded bg-white/[0.05] border border-white/10 text-amber-400">
-                            {visitor.totalVisits} {visitor.totalVisits === 1 ? "Visit" : "Visits"}
+                            {visitor.totalVisits} Hits
                           </span>
                         </td>
 
@@ -433,27 +597,17 @@ export default function AdminDashboard() {
                         </td>
 
                         <td className="p-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => setSelectedGroup(visitor)}
-                              className="px-3 py-1 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-300 hover:bg-amber-400 hover:text-black font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <History className="w-3.5 h-3.5" />
-                              <span>View Timestamps ({visitor.history.length})</span>
-                            </button>
-
-                            <button
-                              onClick={() => handleToggleBlockIP(visitor.ip, visitor.isBlocked)}
-                              className={`px-3 py-1 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                visitor.isBlocked
-                                  ? "bg-emerald-950 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black"
-                                  : "bg-red-950 border border-red-500/40 text-red-300 hover:bg-red-600 hover:text-white"
-                              }`}
-                            >
-                              <Ban className="w-3.5 h-3.5" />
-                              <span>{visitor.isBlocked ? "Unblock IP" : "Block IP"}</span>
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => handleToggleBlockIP(visitor.ip, visitor.isBlocked)}
+                            className={`px-3 py-1 rounded-lg font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer ${
+                              visitor.isBlocked
+                                ? "bg-emerald-950 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black"
+                                : "bg-red-950 border border-red-500/40 text-red-300 hover:bg-red-600 hover:text-white"
+                            }`}
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                            <span>{visitor.isBlocked ? "Unblock IP" : "Block IP"}</span>
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -463,7 +617,41 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* TAB 2: BLOCKED IPS MANAGEMENT */}
+          {/* TAB 3: ALL RAW HITS */}
+          {activeTab === "raw" && (
+            <div className="rounded-2xl border border-white/10 bg-zinc-950 overflow-x-auto hud-box">
+              <table className="w-full text-left text-xs font-mono">
+                <thead className="bg-white/[0.03] text-amber-400 border-b border-white/10 uppercase tracking-wider text-[10px]">
+                  <tr>
+                    <th className="p-4">Timestamp</th>
+                    <th className="p-4">IP Address</th>
+                    <th className="p-4">Device & OS</th>
+                    <th className="p-4">Action / Target</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {filteredRawEvents.map((evt) => (
+                    <tr key={evt.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="p-4 text-zinc-400 whitespace-nowrap">
+                        {new Date(evt.timestamp).toLocaleString()}
+                      </td>
+                      <td className="p-4 font-bold text-amber-300 whitespace-nowrap">
+                        {evt.ip}
+                      </td>
+                      <td className="p-4 text-zinc-300 whitespace-nowrap">
+                        {evt.deviceType} ({evt.os} • {evt.browser})
+                      </td>
+                      <td className="p-4 text-zinc-200">
+                        {evt.linkText ? `Clicked: "${evt.linkText}"` : `Page Visit (${evt.path})`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* TAB 4: BLOCKED IPS */}
           {activeTab === "blocked" && (
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-red-950/30 border border-red-500/30 text-red-300 text-xs font-mono flex items-center gap-3">
@@ -522,10 +710,10 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* TIMESTAMPS & ACTIVITY HISTORY MODAL FOR SELECTED IP */}
-      {selectedGroup && (
+      {/* TIMESTAMPS & ACTIVITY HISTORY MODAL FOR SELECTED DEVICE */}
+      {selectedDevice && (
         <div
-          onClick={() => setSelectedGroup(null)}
+          onClick={() => setSelectedDevice(null)}
           className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex items-center justify-center p-4 sm:p-8 animate-fade-in cursor-pointer select-none"
         >
           <div
@@ -536,20 +724,20 @@ export default function AdminDashboard() {
             <div className="flex items-center justify-between border-b border-white/10 pb-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
-                  <span className="px-3 py-1 rounded bg-amber-950 border border-amber-500/40 text-amber-300 font-mono font-bold text-sm">
-                    {selectedGroup.ip}
+                  <span className="px-3 py-1 rounded bg-amber-400 text-black font-bold font-mono text-xs">
+                    {selectedDevice.deviceType} ({selectedDevice.os} • {selectedDevice.browser})
                   </span>
-                  <span className="text-xs font-mono text-zinc-400">
-                    {selectedGroup.deviceType} ({selectedGroup.os} • {selectedGroup.browser})
+                  <span className="text-xs font-mono text-amber-300 font-bold">
+                    IP: {selectedDevice.ip}
                   </span>
                 </div>
-                <p className="text-xs font-mono text-amber-400">
-                  Total Visits: {selectedGroup.totalVisits} Recorded Hits
+                <p className="text-xs font-mono text-zinc-400">
+                  Device Visitor ID: {selectedDevice.visitorId}
                 </p>
               </div>
 
               <button
-                onClick={() => setSelectedGroup(null)}
+                onClick={() => setSelectedDevice(null)}
                 className="p-2 rounded-full bg-white/10 hover:bg-amber-400 hover:text-black text-white transition-colors cursor-pointer"
               >
                 ✕
@@ -559,18 +747,18 @@ export default function AdminDashboard() {
             {/* Timestamps List Container */}
             <div className="overflow-y-auto space-y-3 pr-2 flex-1 scrollbar-none">
               <h4 className="text-xs font-mono text-amber-400 font-bold uppercase tracking-wider">
-                CHRONOLOGICAL TIMESTAMP TIMELINE ({selectedGroup.history.length} ENTRIES)
+                DEVICE TIMESTAMP TIMELINE ({selectedDevice.history.length} ENTRIES)
               </h4>
 
               <div className="space-y-2">
-                {selectedGroup.history.map((item, index) => (
+                {selectedDevice.history.map((item, index) => (
                   <div
                     key={item.id || index}
                     className="p-4 rounded-xl bg-white/[0.03] border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-mono hover:border-amber-500/30 transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <span className="w-6 h-6 rounded-full bg-amber-950/80 border border-amber-500/30 text-amber-400 text-[10px] flex items-center justify-center font-bold">
-                        #{selectedGroup.history.length - index}
+                        #{selectedDevice.history.length - index}
                       </span>
                       <div>
                         <span className="text-white font-bold block">
@@ -601,22 +789,22 @@ export default function AdminDashboard() {
             {/* Modal Actions */}
             <div className="pt-4 border-t border-white/10 flex items-center justify-between">
               <span className="text-[10px] font-mono text-zinc-500">
-                Visitor ID: {selectedGroup.visitorId}
+                Network Address: {selectedDevice.ip}
               </span>
 
               <button
                 onClick={() => {
-                  handleToggleBlockIP(selectedGroup.ip, selectedGroup.isBlocked);
-                  setSelectedGroup(null);
+                  handleToggleBlockIP(selectedDevice.ip, selectedDevice.isBlocked);
+                  setSelectedDevice(null);
                 }}
                 className={`px-4 py-2 rounded-xl text-xs font-mono font-bold transition-all flex items-center gap-2 cursor-pointer ${
-                  selectedGroup.isBlocked
+                  selectedDevice.isBlocked
                     ? "bg-emerald-950 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500 hover:text-black"
                     : "bg-red-950 border border-red-500/40 text-red-300 hover:bg-red-600 hover:text-white"
                 }`}
               >
                 <Ban className="w-4 h-4" />
-                <span>{selectedGroup.isBlocked ? "Unblock IP Address" : "Block This IP Address"}</span>
+                <span>{selectedDevice.isBlocked ? "Unblock IP Address" : "Block This Device IP"}</span>
               </button>
             </div>
           </div>

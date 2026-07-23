@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAnalyticsEvents, getGroupedIPVisitors, getBlockedIPs } from "@/lib/analyticsStore";
+import { getAnalyticsEvents, getGroupedDevices, getGroupedIPVisitors, getBlockedIPs } from "@/lib/analyticsStore";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -14,9 +14,12 @@ export async function GET(req: NextRequest) {
   const events = rawEvents.filter((e) => !e.ip.includes("127.0.0.1") && !e.ip.includes("::1"));
 
   const totalHits = events.length;
-  const uniqueVisitorIds = new Set(events.map((e) => e.visitorId));
-  const uniqueDeviceCount = uniqueVisitorIds.size;
-  const uniqueIPs = new Set(events.map((e) => e.ip)).size;
+
+  const groupedDevices = getGroupedDevices();
+  const groupedVisitors = getGroupedIPVisitors();
+
+  const uniqueDeviceCount = groupedDevices.length;
+  const uniqueIPs = groupedVisitors.length;
 
   const deviceCounts = {
     Desktop: 0,
@@ -29,7 +32,6 @@ export async function GET(req: NextRequest) {
     deviceCounts[e.deviceType] = (deviceCounts[e.deviceType] || 0) + 1;
   });
 
-  const groupedVisitors = getGroupedIPVisitors();
   const blockedIPs = getBlockedIPs();
 
   return NextResponse.json({
@@ -40,6 +42,7 @@ export async function GET(req: NextRequest) {
       deviceCounts,
       blockedIPCount: blockedIPs.length,
     },
+    groupedDevices,
     groupedVisitors,
     events,
     blockedIPs,
